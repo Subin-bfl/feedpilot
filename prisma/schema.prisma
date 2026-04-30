@@ -1,0 +1,302 @@
+// FeedPilot — Prisma schema
+// Multi-tenant SaaS for product feed management.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ───────────────────────── auth & tenancy ─────────────────────────
+
+model User {
+  id            String               @id @default(cuid())
+  email         String               @unique
+  passwordHash  String
+  name          String?
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  memberships   OrganizationMember[]
+}
+
+model Organization {
+  id          String                 @id @default(cuid())
+  name        String
+  slug        String                 @unique
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+  members     OrganizationMember[]
+  stores      Store[]
+  templates   ChannelTemplate[]
+}
+
+enum OrgRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+model OrganizationMember {
+  id             String       @id @default(cuid())
+  userId         String
+  organizationId String
+  role           OrgRole      @default(MEMBER)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  @@unique([userId, organizationId])
+}
+
+// ───────────────────────── store ─────────────────────────
+
+enum StorePlatform {
+  SHOPIFY
+  WOOCOMMERCE
+  CUSTOM
+}
+
+model Store {
+  id             String       @id @default(cuid())
+  organizationId String
+  name           String
+  platform       StorePlatform
+  currency       String       @default("USD")
+  country        String       @default("US")
+  websiteUrl     String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  sourceFeeds    SourceFeed[]
+  channelFeeds   ChannelFeed[]
+  products       Product[]
+
+  @@index([organizationId])
+}
+
+// ───────────────────────── source feeds & products ─────────────────────────
+
+model SourceFeed {
+  id           String    @id @default(cuid())
+  storeId      String
+  name         String
+  // Raw, parsed CSV row data (array of objects).
+  // Stored in DB so we never depend on local files (Railway is ephemeral).
+  rawProducts  Json
+  detectedColumns String[]
+  productCount Int       @default(0)
+  uploadedAt   DateTime  @default(now())
+  store        Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  channelFeeds ChannelFeed[]
+
+  @@index([storeId])
+}
+
+model Product {
+  id           String   @id @default(cuid())
+  storeId      String
+  sourceFeedId String?
+  externalId   String?
+  title        String
+  description  String?
+  brand        String?
+  price        Float?
+  currency     String?
+  availability String?
+  imageLink    String?
+  productUrl   String?
+  // All raw fields from the CSV (to support arbitrary mapping)
+  data         Json
+  createdAt    DateTime @default(now())
+  store        Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId])
+  @@index([sourceFeedId])
+}
+
+// ───────────────────────── channels, templates, mapping, rules ─────────────────────────
+
+enum ChannelType {
+  GOOGLE
+  META
+  TIKTOK
+  MICROSOFT
+  CUSTOM
+}
+
+model ChannelTemplate {
+  id             String        @id @default(cuid())
+  organizationId String
+  name           String
+  channel        ChannelType
+  // List of channel-side field definitions: [{ key, label, required, type }]
+  fields         Json
+  isSystem       Boolean       @default(false)
+  createdAt      DateTime      @default(now())
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  channelFeeds   ChannelFeed[]
+
+  @@index([organizationId])
+}
+
+model ChannelFeed {
+  id           String         @id @default(cuid())
+  storeId      String
+  sourceFeedId String
+  templateId   String
+  name         String
+  channel      ChannelType
+  schedule     String?        // cron expression, MVP UI-only
+  lastRunAt    DateTime?
+  lastScore    Int?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  store        Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  sourceFeed   SourceFeed     @relation(fields: [sourceFeedId], references: [id], onDelete: Cascade)
+  template     ChannelTemplate @relation(fields: [templateId], references: [id])
+
+  mappings     FieldMapping[]
+  rules        FeedRule[]
+  validations  FeedValidationResult[]
+  exports      FeedExport[]
+  jobs         FeedProcessingJob[]
+
+  @@index([storeId])
+}
+
+enum MappingMode {
+  FIELD     // direct: source field
+  STATIC    // literal value
+  COMBINE   // combine multiple source fields with separator
+}
+
+model FieldMapping {
+  id            String       @id @default(cuid())
+  channelFeedId String
+  channelField  String       // target key (e.g. "title")
+  mode          MappingMode  @default(FIELD)
+  sourceField   String?      // for FIELD
+  staticValue   String?      // for STATIC
+  combineFields String[]     // for COMBINE
+  separator     String?      @default(" ")
+  createdAt     DateTime     @default(now())
+  channelFeed   ChannelFeed  @relation(fields: [channelFeedId], references: [id], onDelete: Cascade)
+
+  @@index([channelFeedId])
+}
+
+// rules
+
+model FeedRule {
+  id              String          @id @default(cuid())
+  channelFeedId   String
+  name            String
+  // Match logic: ALL conditions must be true (AND) — kept simple for MVP.
+  enabled         Boolean         @default(true)
+  priority        Int             @default(0)
+  createdAt       DateTime        @default(now())
+  channelFeed     ChannelFeed     @relation(fields: [channelFeedId], references: [id], onDelete: Cascade)
+  conditions      RuleCondition[]
+  actions         RuleAction[]
+
+  @@index([channelFeedId])
+}
+
+enum RuleOperator {
+  equals
+  contains
+  greater_than
+  less_than
+  is_empty
+  regex
+}
+
+model RuleCondition {
+  id        String       @id @default(cuid())
+  ruleId    String
+  field     String
+  operator  RuleOperator
+  value     String?
+  rule      FeedRule     @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@index([ruleId])
+}
+
+enum RuleActionType {
+  set_value
+  append_text
+  prepend_text
+  replace
+  exclude_product
+  assign_custom_label
+}
+
+model RuleAction {
+  id        String         @id @default(cuid())
+  ruleId    String
+  type      RuleActionType
+  field     String?        // target channel field (not needed for exclude_product)
+  value     String?
+  search    String?        // for replace
+  rule      FeedRule       @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@index([ruleId])
+}
+
+// validation, exports, jobs
+
+model FeedValidationResult {
+  id            String      @id @default(cuid())
+  channelFeedId String
+  score         Int
+  errorCount    Int
+  warningCount  Int
+  // List of { level: "error"|"warning", code, message, field?, productId? }
+  issues        Json
+  createdAt     DateTime    @default(now())
+  channelFeed   ChannelFeed @relation(fields: [channelFeedId], references: [id], onDelete: Cascade)
+
+  @@index([channelFeedId])
+}
+
+enum ExportFormat {
+  CSV
+  XML
+}
+
+model FeedExport {
+  id            String       @id @default(cuid())
+  channelFeedId String
+  format        ExportFormat
+  // Inline body (text). For MVP we keep it simple and small.
+  body          String       @db.Text
+  productCount  Int
+  createdAt     DateTime     @default(now())
+  channelFeed   ChannelFeed  @relation(fields: [channelFeedId], references: [id], onDelete: Cascade)
+
+  @@index([channelFeedId])
+}
+
+enum JobStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+model FeedProcessingJob {
+  id            String      @id @default(cuid())
+  channelFeedId String
+  status        JobStatus   @default(PENDING)
+  message       String?
+  startedAt     DateTime?
+  finishedAt    DateTime?
+  createdAt     DateTime    @default(now())
+  channelFeed   ChannelFeed @relation(fields: [channelFeedId], references: [id], onDelete: Cascade)
+
+  @@index([channelFeedId])
+}
