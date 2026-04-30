@@ -2,6 +2,10 @@
   "name": "feedpilot",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=20.18.0",
+    "npm": ">=10"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
