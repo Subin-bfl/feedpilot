@@ -129,7 +129,7 @@ export function RuleBuilder({ channelFeedId, channelFields, sourceColumns, initi
       </CardHeader>
       <CardContent className="space-y-6">
         {rules.length === 0 && (
-          <p className="text-sm text-muted-foreground">No rules yet. Click "New rule" to add one.</p>
+          <p className="text-sm text-muted-foreground">No rules yet. Click &quot;New rule&quot; to add one.</p>
         )}
         {rules.map((rule, ri) => (
           <div key={ri} className="rounded-md border bg-muted/20 p-4">

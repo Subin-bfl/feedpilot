@@ -42,7 +42,7 @@ export async function ChannelFeedPicker({
       {feeds.length === 0 ? (
         <Card>
           <CardContent className="p-6 text-sm text-muted-foreground">
-            You don't have any channel feeds yet. Create one to start{" "}
+            You don&apos;t have any channel feeds yet. Create one to start{" "}
             {subPath === "mapping"
               ? "mapping fields"
               : subPath === "rules"

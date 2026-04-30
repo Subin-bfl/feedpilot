@@ -103,7 +103,7 @@ export default async function ChannelFeedOverviewPage({
           />
           <p className="mt-2 text-xs text-muted-foreground">
             Scheduling UI is included for parity; actual cron execution is out of MVP scope.
-            Click "Generate now" on the header to trigger a run.
+            Click &quot;Generate now&quot; on the header to trigger a run.
           </p>
         </CardContent>
       </Card>
