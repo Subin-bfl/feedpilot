@@ -59,13 +59,6 @@ npm run prisma:seed
 npm run dev
 ```
 
-Demo login (after seed):
-
-```
-email:    demo@feedpilot.dev
-password: demo1234
-```
-
 The seed creates a demo org, one store, 20 sample products, all five channel templates (Google, Meta, TikTok, Microsoft, Custom), one Google channel feed mapped + 3 sample rules.
 
 ### Optional: BullMQ worker

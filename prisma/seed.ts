@@ -283,7 +283,9 @@ async function main() {
   });
 
   console.log("Seed complete.");
-  console.log("Login: demo@feedpilot.dev / demo1234");
+  if (process.env.SHOW_DEMO_CREDENTIALS === "true") {
+    console.log("Demo login: demo@feedpilot.dev / demo1234");
+  }
 }
 
 main()
