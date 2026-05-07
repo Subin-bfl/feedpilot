@@ -1,0 +1,13 @@
+<svg width="320" height="80" viewBox="0 0 320 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="320" height="80" rx="12" fill="#111111"/>
+  <g transform="translate(12,12)">
+    <path d="M28 0L56 16V48L28 64L0 48V16L28 0Z" fill="#F4C400"/>
+    <path d="M17 18H30C36.6 18 41 21.2 41 26C41 29.3 38.8 31.7 35.4 32.6C39.2 33.4 42 36 42 40.1C42 45.5 37.1 49 29.7 49H17V18ZM28.5 30.1C31.2 30.1 32.9 28.9 32.9 26.8C32.9 24.8 31.3 23.8 28.5 23.8H24.6V30.1H28.5ZM29.6 43.2C32.6 43.2 34.4 41.9 34.4 39.7C34.4 37.6 32.7 36.3 29.2 36.3H24.6V43.2H29.6Z" fill="#111111"/>
+  </g>
+  <text x="84" y="34" fill="#F4C400" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="700">
+    BFL
+  </text>
+  <text x="84" y="56" fill="#FFFFFF" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="700">
+    Feed Management Tool
+  </text>
+</svg>

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { requireStore, requireTenant } from "@/lib/tenant";
+import { requireStore, requireTenant, requireWriteAccess } from "@/lib/tenant";
 import { detectFormat, extractProductFields, parseFeed } from "@/services/feedParser";
 import { jsonError } from "@/lib/api";
 
@@ -16,7 +16,7 @@ const Form = z.object({
 
 export async function POST(req: Request) {
   try {
-    const t = await requireTenant();
+    const t = await requireWriteAccess();
     const formData = await req.formData();
     const fields = Form.parse({
       storeId: formData.get("storeId"),

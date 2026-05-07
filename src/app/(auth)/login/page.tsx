@@ -16,11 +16,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
  */
 export default function LoginPage() {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Sign in to FeedPilot</CardTitle>
+    <Card className="border-[#f4c400]/40 bg-white shadow-xl">
+      <CardHeader className="space-y-2">
+        <CardTitle className="text-2xl font-semibold text-[#111111]">
+          Login to your account
+        </CardTitle>
         <CardDescription>
-          Use the demo account or{" "}
+          Welcome to <span className="font-medium text-[#111111]">BFL Feed Management Tool</span>. Use
+          the demo account or{" "}
           <Link href="/register" className="underline">
             create a new one
           </Link>
@@ -65,7 +68,7 @@ function LoginForm() {
   return (
     <form className="flex flex-col gap-4" onSubmit={onSubmit}>
       <div className="flex flex-col gap-2">
-        <Label htmlFor="email">Email</Label>
+        <Label htmlFor="email">Work email</Label>
         <Input
           id="email"
           type="email"
@@ -87,7 +90,11 @@ function LoginForm() {
         />
       </div>
       {error && <p className="text-sm text-destructive">{error}</p>}
-      <Button type="submit" disabled={loading}>
+      <Button
+        type="submit"
+        disabled={loading}
+        className="bg-[#f4c400] font-semibold text-[#111111] hover:bg-[#e5b900]"
+      >
         {loading ? "Signing in…" : "Sign in"}
       </Button>
     </form>

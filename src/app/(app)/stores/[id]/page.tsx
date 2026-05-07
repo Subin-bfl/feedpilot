@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FeedUploader } from "./FeedUploader";
 import { formatDate } from "@/lib/utils";
+import { XmlSyncSettings } from "./XmlSyncSettings";
+import { StoreDeleteButton } from "../StoreDeleteButton";
 
 export default async function StoreDetailPage({ params }: { params: { id: string } }) {
   const t = await requireTenant();
@@ -40,9 +42,12 @@ export default async function StoreDetailPage({ params }: { params: { id: string
             )}
           </p>
         </div>
-        <Link href="/products">
-          <Button variant="outline">View products ({store._count.products})</Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link href="/products">
+            <Button variant="outline">View products ({store._count.products})</Button>
+          </Link>
+          <StoreDeleteButton id={store.id} />
+        </div>
       </div>
 
       <Card>
@@ -51,6 +56,21 @@ export default async function StoreDetailPage({ params }: { params: { id: string
         </CardHeader>
         <CardContent>
           <FeedUploader storeId={store.id} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>XML URL auto-sync</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <XmlSyncSettings
+            storeId={store.id}
+            initialXmlFeedUrl={store.xmlFeedUrl ?? ""}
+            initialXmlSyncFrequency={store.xmlSyncFrequency}
+            initialXmlLastSyncAt={store.xmlLastSyncAt?.toISOString() ?? null}
+            initialXmlLastSyncError={store.xmlLastSyncError}
+          />
         </CardContent>
       </Card>
 

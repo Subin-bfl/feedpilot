@@ -29,8 +29,8 @@ export default async function ChannelFeedLayout({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between">
-        <div>
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold">{cf.name}</h1>
           <p className="text-sm text-muted-foreground">
             {cf.store.name} · {cf.template.name}{" "}
@@ -39,7 +39,9 @@ export default async function ChannelFeedLayout({
             </Badge>
           </p>
         </div>
-        <ChannelFeedActions channelFeedId={cf.id} />
+        <div className="lg:pt-1">
+          <ChannelFeedActions channelFeedId={cf.id} publicToken={cf.publicToken} />
+        </div>
       </div>
       <nav className="flex gap-1 border-b">
         {subnav.map((s) => (

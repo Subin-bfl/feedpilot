@@ -108,6 +108,12 @@ async function main() {
     create: { userId: user.id, organizationId: org.id, role: "OWNER" },
   });
 
+  // Ensure the demo user has an active org selected (multi-org support).
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { activeOrganizationId: org.id },
+  });
+
   // Templates
   const googleTpl = await prisma.channelTemplate.create({
     data: {

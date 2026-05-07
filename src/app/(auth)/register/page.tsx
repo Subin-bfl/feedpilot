@@ -45,9 +45,9 @@ export default function RegisterPage() {
   }
 
   return (
-    <Card>
+    <Card className="border-[#f4c400]/40 bg-white shadow-xl">
       <CardHeader>
-        <CardTitle>Create your FeedPilot account</CardTitle>
+        <CardTitle>Create your BFL Feed Management Tool account</CardTitle>
       </CardHeader>
       <CardContent>
         <form className="flex flex-col gap-4" onSubmit={onSubmit}>
@@ -86,7 +86,11 @@ export default function RegisterPage() {
             />
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
-          <Button type="submit" disabled={loading}>
+          <Button
+            type="submit"
+            disabled={loading}
+            className="bg-[#f4c400] font-semibold text-[#111111] hover:bg-[#e5b900]"
+          >
             {loading ? "Creating…" : "Create account"}
           </Button>
           <p className="text-center text-sm">

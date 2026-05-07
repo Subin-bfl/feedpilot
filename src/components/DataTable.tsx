@@ -12,9 +12,17 @@ type DataTableProps<T> = {
   columns: ColumnDef<T, unknown>[];
   data: T[];
   emptyMessage?: string;
+  onRowClick?: (row: T) => void;
+  getRowClassName?: (row: T) => string;
 };
 
-export function DataTable<T>({ columns, data, emptyMessage = "No results." }: DataTableProps<T>) {
+export function DataTable<T>({
+  columns,
+  data,
+  emptyMessage = "No results.",
+  onRowClick,
+  getRowClassName,
+}: DataTableProps<T>) {
   const table = useReactTable({
     data,
     columns,
@@ -46,7 +54,16 @@ export function DataTable<T>({ columns, data, emptyMessage = "No results." }: Da
             </TR>
           ) : (
             table.getRowModel().rows.map((row) => (
-              <TR key={row.id}>
+              <TR
+                key={row.id}
+                className={[
+                  onRowClick ? "cursor-pointer" : "",
+                  getRowClassName ? getRowClassName(row.original) : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+                onClick={onRowClick ? () => onRowClick(row.original) : undefined}
+              >
                 {row.getVisibleCells().map((cell) => (
                   <TD key={cell.id}>
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}

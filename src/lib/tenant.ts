@@ -1,6 +1,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import type { OrgRole } from "@prisma/client";
 
 export class TenantError extends Error {
   status: number;
@@ -24,7 +25,28 @@ export async function requireTenant() {
     organizationId: session.user.organizationId,
     organizationSlug: session.user.organizationSlug,
     email: session.user.email,
+    orgRole: session.user.orgRole,
   };
+}
+
+export function isAdminRole(role: OrgRole) {
+  return role === "OWNER" || role === "ADMIN";
+}
+
+export function canWrite(role: OrgRole) {
+  return role === "OWNER" || role === "ADMIN" || role === "STANDARD";
+}
+
+export async function requireAdmin() {
+  const t = await requireTenant();
+  if (!isAdminRole(t.orgRole)) throw new TenantError("Forbidden", 403);
+  return t;
+}
+
+export async function requireWriteAccess() {
+  const t = await requireTenant();
+  if (!canWrite(t.orgRole)) throw new TenantError("Forbidden", 403);
+  return t;
 }
 
 /** Verify a store belongs to the caller's organization. */

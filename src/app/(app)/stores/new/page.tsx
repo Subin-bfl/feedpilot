@@ -16,6 +16,8 @@ export default function NewStorePage() {
     currency: "USD",
     country: "US",
     websiteUrl: "",
+    xmlFeedUrl: "",
+    xmlSyncFrequency: "DAILY",
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -86,6 +88,23 @@ export default function NewStorePage() {
                 value={form.websiteUrl}
                 onChange={(e) => setForm((f) => ({ ...f, websiteUrl: e.target.value }))}
               />
+            </Field>
+            <Field label="XML Feed URL (optional)">
+              <Input
+                placeholder="https://example.com/products.xml"
+                value={form.xmlFeedUrl}
+                onChange={(e) => setForm((f) => ({ ...f, xmlFeedUrl: e.target.value }))}
+              />
+            </Field>
+            <Field label="XML Auto-sync frequency">
+              <Select
+                value={form.xmlSyncFrequency}
+                onChange={(e) => setForm((f) => ({ ...f, xmlSyncFrequency: e.target.value }))}
+              >
+                <option value="HOURLY">Hourly</option>
+                <option value="DAILY">Daily</option>
+                <option value="WEEKLY">Weekly</option>
+              </Select>
             </Field>
             {error && <p className="text-sm text-destructive">{error}</p>}
             <Button type="submit" disabled={loading}>

@@ -8,6 +8,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // ───────────────────────── auth & tenancy ─────────────────────────
@@ -17,9 +18,11 @@ model User {
   email         String               @unique
   passwordHash  String
   name          String?
+  activeOrganizationId String?
   createdAt     DateTime             @default(now())
   updatedAt     DateTime             @updatedAt
   memberships   OrganizationMember[]
+  activeOrganization Organization?   @relation("ActiveOrganization", fields: [activeOrganizationId], references: [id], onDelete: SetNull)
 }
 
 model Organization {
@@ -31,19 +34,21 @@ model Organization {
   members     OrganizationMember[]
   stores      Store[]
   templates   ChannelTemplate[]
+  activeUsers User[]                 @relation("ActiveOrganization")
 }
 
 enum OrgRole {
   OWNER
   ADMIN
-  MEMBER
+  STANDARD
+  READONLY
 }
 
 model OrganizationMember {
   id             String       @id @default(cuid())
   userId         String
   organizationId String
-  role           OrgRole      @default(MEMBER)
+  role           OrgRole      @default(STANDARD)
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdAt      DateTime     @default(now())
@@ -59,6 +64,12 @@ enum StorePlatform {
   CUSTOM
 }
 
+enum SyncFrequency {
+  HOURLY
+  DAILY
+  WEEKLY
+}
+
 model Store {
   id             String       @id @default(cuid())
   organizationId String
@@ -67,6 +78,10 @@ model Store {
   currency       String       @default("USD")
   country        String       @default("US")
   websiteUrl     String?
+  xmlFeedUrl     String?
+  xmlSyncFrequency SyncFrequency @default(DAILY)
+  xmlLastSyncAt  DateTime?
+  xmlLastSyncError String?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -144,6 +159,7 @@ model ChannelTemplate {
 
 model ChannelFeed {
   id           String         @id @default(cuid())
+  publicToken  String         @unique @default(cuid())
   storeId      String
   sourceFeedId String
   templateId   String
@@ -172,6 +188,9 @@ enum MappingMode {
   FIELD     // direct: source field
   STATIC    // literal value
   COMBINE   // combine multiple source fields with separator
+  LOOKUP    // map source value via lookup table
+  EXTRACT   // extract value with regex from a source field
+  EMPTY     // force empty value
 }
 
 model FieldMapping {
@@ -183,6 +202,10 @@ model FieldMapping {
   staticValue   String?      // for STATIC
   combineFields String[]     // for COMBINE
   separator     String?      @default(" ")
+  lookupTable   Json?        // for LOOKUP: [{ from, to }]
+  extractPattern String?     // for EXTRACT: regex pattern
+  extractGroup  Int?         // for EXTRACT: capture group index
+  valueEdits    Json?        // post-map edits: prefix/suffix/replace rules
   createdAt     DateTime     @default(now())
   channelFeed   ChannelFeed  @relation(fields: [channelFeedId], references: [id], onDelete: Cascade)
 
@@ -231,6 +254,7 @@ enum RuleActionType {
   append_text
   prepend_text
   replace
+  include_product
   exclude_product
   assign_custom_label
 }

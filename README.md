@@ -1,6 +1,6 @@
-# FeedPilot
+# BFL Feed Management Tool
 
-A multi-tenant SaaS for product feed management — import **CSV or XML** product feeds, map fields to channel templates (Google, Meta, TikTok, Microsoft, Custom), apply rule-based transformations, validate, preview and export to CSV/XML.
+A multi-tenant SaaS for product feed management — import **CSV or XML** product feeds, map fields to channel templates (Google, Meta, TikTok, Microsoft, Custom), apply transformations, validate, preview and export to CSV/XML.
 
 > Original implementation. Not affiliated with any commercial product.
 
@@ -27,6 +27,17 @@ A multi-tenant SaaS for product feed management — import **CSV or XML** produc
 - Preview with **Transformed / Source / Diff** tabs; diff highlights changed cells per product
 - Export to CSV and XML (RSS 2.0 / Google Shopping–style)
 - Duplicate channel feed configs across channels in one click
+- Store-level XML feed URL sync with user-selected cadence (**hourly / daily / weekly**)
+- Automatic XML sync processing in worker (imports latest products, stock, and field updates)
+- Automatic channel-feed refresh after XML sync (updates source feed link + regenerates validation/score)
+- Manual "Sync now" trigger for store XML URL ingestion
+- Delete actions in UI for stores and channel feeds
+- Editable channel templates (update schema and add/remove attributes)
+- Stable public XML URL per channel feed (`/api/public/channel-feeds/[token]/feed.xml`) that always renders latest data
+- Product details popup modal from products table row click
+- Mapping modes: **Use, Add static value, Combine, Use lookup table, Extract from, Leave empty**
+- Post-mapping value edit transformations: overwrite, replace single/multiple, remove single/multiple, remove duplicates, strip HTML, add prefix/suffix, recalculate, recapitalize, round
+- Explicit rule actions for both `include_product` and `exclude_product`
 - Mock AI module (`/api/ai/suggest`) — title/category/labels suggestions, deterministic, no external calls
 
 ## Quick start (local)
@@ -67,15 +78,21 @@ npm run worker
 
 Synchronous generation via `POST /api/channel-feeds/[id]/generate` works without Redis; the worker just lets you offload long-running runs.
 
+The same worker also runs scheduled XML URL sync for stores (checks due stores every minute and executes based on each store's selected frequency).
+
 ## Railway deployment
 
 1. Create a new Railway project.
-2. Provision **PostgreSQL** and **Redis** plugins (Redis is optional for the app itself; required only for the worker).
+2. Provision **Redis** plugin if you want the worker (optional for the app itself).
 3. Create a service from this repo.
-4. Set env vars from `.env.example` — Railway auto-fills `DATABASE_URL` / `REDIS_URL` if you reference the plugins.
+4. Set env vars from `.env.example`:
+   - **Supabase Postgres**:
+     - `DATABASE_URL`: use Supabase **pooler/transaction** URL if you want (recommended for serverless), otherwise you can use the direct URL.
+     - `DIRECT_URL`: Supabase **direct** connection string (used by Prisma for migrations).
+   - **Redis (optional)**: set `REDIS_URL` if running the worker.
 5. `railway.json` controls the lifecycle:
    - **build:** `npm ci && npm run build` (which runs `prisma generate && next build`)
-   - **release/start:** `npx prisma migrate deploy && npm run start` (binds to `$PORT`)
+   - **release/start:** `npx prisma migrate deploy && npm run start` (binds to `$PORT`, uses `DIRECT_URL` for migrations)
    - **healthcheck:** `GET /api/health`
 
 The app is fully ephemeral-safe: uploaded files are parsed in memory and the parsed JSON is persisted to Postgres immediately. No local file storage anywhere.
@@ -100,10 +117,12 @@ Upload CSV / XML  →  parse → store rows as JSON
 | `*` | `/api/auth/[...nextauth]` | NextAuth credentials |
 | `GET` | `/api/health` | Healthcheck (used by Railway) |
 | `GET/POST` | `/api/stores` | List + create stores |
-| `GET/DELETE` | `/api/stores/[id]` | Store detail / delete |
+| `GET/PATCH/DELETE` | `/api/stores/[id]` | Store detail / update / delete |
+| `POST` | `/api/stores/[id]/sync` | Manual XML URL sync for a store |
 | `POST` | `/api/source-feeds/upload` | Multipart upload, `format=auto\|csv\|xml` |
 | `GET` | `/api/products` | Paginated, searchable, filterable |
 | `GET/POST` | `/api/channel-templates` | List + create templates |
+| `PATCH` | `/api/channel-templates/[id]` | Update template name/fields |
 | `GET/POST` | `/api/channel-feeds` | List + create channel feeds |
 | `GET/DELETE` | `/api/channel-feeds/[id]` | Detail / delete |
 | `POST` | `/api/channel-feeds/[id]/duplicate` | Duplicate config (optionally to a different channel) |
@@ -114,6 +133,7 @@ Upload CSV / XML  →  parse → store rows as JSON
 | `GET` | `/api/channel-feeds/[id]/validation` | Latest validation report |
 | `GET` | `/api/channel-feeds/[id]/export.csv` | Download CSV |
 | `GET` | `/api/channel-feeds/[id]/export.xml` | Download RSS-2.0 XML |
+| `GET` | `/api/public/channel-feeds/[token]/feed.xml` | Stable public XML feed URL |
 | `POST` | `/api/ai/suggest` | Mock title/category/label suggestions |
 
 ## Project layout
@@ -136,18 +156,13 @@ src/
     (app)/products
     (app)/channel-feeds       + new + [id] + [id]/{mapping,rules,validation,preview}
     (app)/channel-templates
-    (app)/mapping             top-level — feed picker → /channel-feeds/[id]/mapping
-    (app)/rules               top-level — feed picker → /channel-feeds/[id]/rules
-    (app)/validation          top-level — feed picker → /channel-feeds/[id]/validation
-    (app)/preview             top-level — feed picker → /channel-feeds/[id]/preview
-
     api/...                   see API table above
 
   components/
     ui/                       (button, input, label, card, select, textarea, badge, table)
     DataTable.tsx             TanStack Table wrapper
-    FieldMapper.tsx           direct / static / combine mapping editor
-    RuleBuilder.tsx           full conditions × actions editor
+    FieldMapper.tsx           advanced mapping editor + value transformations
+    RuleBuilder.tsx           full conditions × actions editor (include/exclude support)
     FeedPreview.tsx           transformed / source / diff (with cell-level highlight)
     ValidationPanel.tsx
     ChannelFeedPicker.tsx     server component used by top-level /mapping etc.
@@ -155,8 +170,8 @@ src/
 
   services/
     feedParser.ts             parseCSV + parseXML + detectFormat + parseFeed
-    feedMapper.ts             FIELD / STATIC / COMBINE
-    ruleEngine.ts             6 operators × 6 actions
+    feedMapper.ts             mapping engine (FIELD/STATIC/COMBINE/LOOKUP/EXTRACT/EMPTY + value edits)
+    ruleEngine.ts             rule engine with include/exclude and transform actions
     feedValidator.ts          required / url / price / length checks + 0–100 score
     feedExporter.ts           CSV (PapaParse) + XML (xml2js, RSS-2.0)
     feedHealthScore.ts        validation × coverage × freshness
@@ -176,13 +191,32 @@ src/
     feed.worker.ts            BullMQ worker — runs the same pipeline async
 
   middleware.ts               auth-gates /dashboard, /stores, /products,
-                              /channel-feeds, /channel-templates,
-                              /mapping, /rules, /validation, /preview
+                              /channel-feeds, /channel-templates
 
 prisma/
-  schema.prisma               15 models incl. enums for platform/channel/operator/action/format/status
+  schema.prisma               core models + enums for sync, mapping, rules, exports, jobs
   seed.ts                     demo org + 20 products + 5 templates + 3 rules
 ```
+
+## Resume Work Later
+
+To resume quickly in a future chat/session:
+
+1. Start with `CHANGELOG.md` (latest day section first).
+2. Review this README's **Features** and **Project layout** sections.
+3. Run app locally:
+   - `npm install`
+   - `npm run prisma:generate`
+   - `npx prisma db push`
+   - `npm run dev`
+   - `npm run worker` (for scheduled XML sync behavior)
+4. Validate critical flows:
+   - Store XML URL sync schedule + manual sync
+   - Channel feed mapping + value edits + rules
+   - Public XML URL output
+   - Product details popup
+
+These docs are now the source of truth for project scope and implemented functionality.
 
 ## Multi-tenancy
 

@@ -3,8 +3,8 @@ import "./globals.css";
 import { Providers } from "./providers";
 
 export const metadata: Metadata = {
-  title: "FeedPilot",
-  description: "Product feed management — import, map, validate, export.",
+  title: "BFL Feed Management Tool",
+  description: "BFL Feed Management Tool — import, map, validate, and export feeds.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

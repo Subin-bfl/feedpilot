@@ -79,6 +79,8 @@ function applyAction(a: RuleAction, ctx: RuleContext): { excluded?: boolean } {
         ctx.mapped[a.field] = asString(ctx.mapped[a.field]).split(search).join(replacement);
       }
       return {};
+    case "include_product":
+      return {};
     case "exclude_product":
       return { excluded: true };
     case "assign_custom_label":
@@ -97,11 +99,13 @@ export function applyRules(
   const ctx: RuleContext = { source, mapped: { ...mapped } };
   const appliedRules: string[] = [];
   let excluded = false;
+  let matchedInclude = false;
 
   // Sort by priority asc (low first), enabled only.
   const ordered = [...rules]
     .filter((r) => r.enabled)
     .sort((a, b) => a.priority - b.priority);
+  const hasIncludeRules = ordered.some((r) => r.actions.some((a) => a.type === "include_product"));
 
   for (const rule of ordered) {
     const matches = rule.conditions.length === 0
@@ -110,12 +114,15 @@ export function applyRules(
     if (!matches) continue;
 
     appliedRules.push(rule.id);
+    if (rule.actions.some((a) => a.type === "include_product")) matchedInclude = true;
     for (const action of rule.actions) {
       const r = applyAction(action, ctx);
       if (r.excluded) excluded = true;
     }
     if (excluded) break;
   }
+
+  if (hasIncludeRules && !matchedInclude) excluded = true;
 
   return { excluded, mapped: ctx.mapped, appliedRules };
 }

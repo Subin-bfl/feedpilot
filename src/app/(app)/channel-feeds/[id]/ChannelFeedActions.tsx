@@ -4,7 +4,13 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 
-export function ChannelFeedActions({ channelFeedId }: { channelFeedId: string }) {
+export function ChannelFeedActions({
+  channelFeedId,
+  publicToken,
+}: {
+  channelFeedId: string;
+  publicToken: string;
+}) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -35,20 +41,48 @@ export function ChannelFeedActions({ channelFeedId }: { channelFeedId: string })
     }
   }
 
+  async function remove() {
+    if (!confirm("Delete this channel feed?")) return;
+    setBusy("delete");
+    try {
+      const res = await fetch(`/api/channel-feeds/${channelFeedId}`, { method: "DELETE" });
+      if (res.ok) router.push("/channel-feeds");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function copyXmlUrl() {
+    const url = `${window.location.origin}/api/public/channel-feeds/${publicToken}/feed.xml`;
+    await navigator.clipboard.writeText(url);
+    setBusy("copied");
+    setTimeout(() => setBusy(null), 1200);
+  }
+
   return (
-    <div className="flex flex-wrap gap-2">
-      <Button variant="outline" onClick={duplicate} disabled={busy !== null}>
+    <div className="flex flex-wrap items-center justify-start gap-2 lg:justify-end">
+      <Button size="sm" variant="outline" onClick={copyXmlUrl} disabled={busy !== null}>
+        {busy === "copied" ? "Copied XML URL" : "Copy XML URL"}
+      </Button>
+      <Button size="sm" variant="outline" onClick={duplicate} disabled={busy !== null}>
         {busy === "duplicate" ? "…" : "Duplicate"}
       </Button>
-      <Button onClick={generate} disabled={busy !== null}>
+      <Button size="sm" onClick={generate} disabled={busy !== null}>
         {busy === "generate" ? "Generating…" : "Generate now"}
       </Button>
       <a href={`/api/channel-feeds/${channelFeedId}/export.csv`}>
-        <Button variant="secondary">Export CSV</Button>
+        <Button size="sm" variant="secondary">
+          Export CSV
+        </Button>
       </a>
       <a href={`/api/channel-feeds/${channelFeedId}/export.xml`}>
-        <Button variant="secondary">Export XML</Button>
+        <Button size="sm" variant="secondary">
+          Export XML
+        </Button>
       </a>
+      <Button size="sm" variant="destructive" onClick={remove} disabled={busy !== null}>
+        {busy === "delete" ? "Deleting..." : "Delete"}
+      </Button>
     </div>
   );
 }

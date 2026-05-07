@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { requireChannelFeed, requireTenant } from "@/lib/tenant";
+import { requireChannelFeed, requireTenant, requireWriteAccess } from "@/lib/tenant";
 import { jsonError } from "@/lib/api";
 
 const Condition = z.object({
@@ -16,6 +16,7 @@ const Action = z.object({
     "append_text",
     "prepend_text",
     "replace",
+    "include_product",
     "exclude_product",
     "assign_custom_label",
   ]),
@@ -36,7 +37,7 @@ const Body = z.object({ rules: z.array(Rule) });
 
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
   try {
-    const t = await requireTenant();
+    const t = await requireWriteAccess();
     await requireChannelFeed(params.id, t.organizationId);
     const body = Body.parse(await req.json());
 

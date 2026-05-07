@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { requireTenant } from "@/lib/tenant";
+import { requireTenant, requireWriteAccess } from "@/lib/tenant";
 import { jsonError } from "@/lib/api";
 
 const StoreInput = z.object({
@@ -10,6 +10,8 @@ const StoreInput = z.object({
   currency: z.string().min(3).max(3).default("USD"),
   country: z.string().min(2).max(2).default("US"),
   websiteUrl: z.string().url().optional().or(z.literal("")),
+  xmlFeedUrl: z.string().url().optional().or(z.literal("")),
+  xmlSyncFrequency: z.enum(["HOURLY", "DAILY", "WEEKLY"]).optional().default("DAILY"),
 });
 
 export async function GET() {
@@ -30,7 +32,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const t = await requireTenant();
+    const t = await requireWriteAccess();
     const body = StoreInput.parse(await req.json());
     const store = await prisma.store.create({
       data: {
@@ -40,6 +42,8 @@ export async function POST(req: Request) {
         currency: body.currency,
         country: body.country,
         websiteUrl: body.websiteUrl || null,
+        xmlFeedUrl: body.xmlFeedUrl || null,
+        xmlSyncFrequency: body.xmlSyncFrequency,
       },
     });
     return NextResponse.json(store, { status: 201 });

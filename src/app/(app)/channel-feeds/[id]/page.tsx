@@ -37,6 +37,9 @@ export default async function ChannelFeedOverviewPage({
     excludedCount: result.excludedCount,
     lastRunAt: cf.lastRunAt,
   });
+  const baseUrl = process.env.APP_URL ?? process.env.NEXTAUTH_URL ?? "";
+  const xmlPath = `/api/public/channel-feeds/${cf.publicToken}/feed.xml`;
+  const xmlUrl = baseUrl ? `${baseUrl}${xmlPath}` : xmlPath;
 
   return (
     <div className="grid gap-6 md:grid-cols-3">
@@ -92,7 +95,7 @@ export default async function ChannelFeedOverviewPage({
 
       <Card>
         <CardHeader>
-          <CardTitle>Schedule (UI only)</CardTitle>
+          <CardTitle>Schedule</CardTitle>
         </CardHeader>
         <CardContent>
           <Label>Cron expression</Label>
@@ -102,8 +105,20 @@ export default async function ChannelFeedOverviewPage({
             disabled
           />
           <p className="mt-2 text-xs text-muted-foreground">
-            Scheduling UI is included for parity; actual cron execution is out of MVP scope.
-            Click &quot;Generate now&quot; on the header to trigger a run.
+            This schedule is metadata for feed runs. XML URL always renders current data when accessed.
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card className="md:col-span-3">
+        <CardHeader>
+          <CardTitle>Feed XML URL</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Label>Public XML endpoint</Label>
+          <Input value={xmlUrl} readOnly />
+          <p className="mt-2 text-xs text-muted-foreground">
+            Share this URL with channels. It reflects latest source feed data and product changes automatically.
           </p>
         </CardContent>
       </Card>

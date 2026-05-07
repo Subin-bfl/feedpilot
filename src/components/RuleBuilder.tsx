@@ -21,6 +21,7 @@ type ActionType =
   | "append_text"
   | "prepend_text"
   | "replace"
+  | "include_product"
   | "exclude_product"
   | "assign_custom_label";
 
@@ -52,6 +53,7 @@ const ACTION_TYPES: ActionType[] = [
   "append_text",
   "prepend_text",
   "replace",
+  "include_product",
   "exclude_product",
   "assign_custom_label",
 ];
@@ -63,6 +65,26 @@ function emptyRule(): Rule {
     priority: 0,
     conditions: [{ field: "", operator: "equals", value: "" }],
     actions: [{ type: "set_value", field: "", value: "" }],
+  };
+}
+
+function emptyExcludeRule(): Rule {
+  return {
+    name: "Exclude by condition",
+    enabled: true,
+    priority: 0,
+    conditions: [{ field: "", operator: "equals", value: "" }],
+    actions: [{ type: "exclude_product" }],
+  };
+}
+
+function emptyIncludeRule(): Rule {
+  return {
+    name: "Include by condition",
+    enabled: true,
+    priority: 0,
+    conditions: [{ field: "", operator: "equals", value: "" }],
+    actions: [{ type: "include_product" }],
   };
 }
 
@@ -122,12 +144,34 @@ export function RuleBuilder({ channelFeedId, channelFields, sourceColumns, initi
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
           <span>Rules ({rules.length})</span>
-          <Button size="sm" variant="outline" onClick={() => setRules((rs) => [...rs, emptyRule()])}>
-            <Plus className="h-4 w-4" /> New rule
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setRules((rs) => [...rs, emptyIncludeRule()])}
+            >
+              <Plus className="h-4 w-4" /> Include rule
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setRules((rs) => [...rs, emptyExcludeRule()])}
+            >
+              <Plus className="h-4 w-4" /> Exclude rule
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setRules((rs) => [...rs, emptyRule()])}>
+              <Plus className="h-4 w-4" /> New rule
+            </Button>
+          </div>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
+        <div className="rounded-md border border-[#f4c400]/40 bg-[#fff7cc]/60 p-3 text-sm text-[#111111]">
+          Set conditions using source/channel fields, then use{" "}
+          <span className="font-semibold">include_product</span> or{" "}
+          <span className="font-semibold">exclude_product</span> to control which products are in
+          the channel feed.
+        </div>
         {rules.length === 0 && (
           <p className="text-sm text-muted-foreground">No rules yet. Click &quot;New rule&quot; to add one.</p>
         )}
@@ -261,7 +305,7 @@ export function RuleBuilder({ channelFeedId, channelFields, sourceColumns, initi
                         </option>
                       ))}
                     </Select>
-                    {a.type !== "exclude_product" && (
+                    {a.type !== "exclude_product" && a.type !== "include_product" && (
                       <Select
                         className="col-span-3"
                         value={a.field ?? ""}
@@ -283,7 +327,7 @@ export function RuleBuilder({ channelFeedId, channelFields, sourceColumns, initi
                         placeholder="search"
                       />
                     )}
-                    {a.type !== "exclude_product" && (
+                    {a.type !== "exclude_product" && a.type !== "include_product" && (
                       <Input
                         className={a.type === "replace" ? "col-span-3" : "col-span-5"}
                         value={a.value ?? ""}

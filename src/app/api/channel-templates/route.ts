@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { requireTenant } from "@/lib/tenant";
+import { requireTenant, requireWriteAccess } from "@/lib/tenant";
 import { jsonError } from "@/lib/api";
 
 const FieldSchema = z.object({
@@ -32,7 +32,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const t = await requireTenant();
+    const t = await requireWriteAccess();
     const body = TemplateInput.parse(await req.json());
     const tpl = await prisma.channelTemplate.create({
       data: {

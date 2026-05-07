@@ -24,6 +24,19 @@ export default async function MappingPage({ params }: { params: { id: string } }
         staticValue: m.staticValue,
         combineFields: m.combineFields,
         separator: m.separator,
+        lookupTable: (m.lookupTable as { from: string; to: string }[] | null) ?? [],
+        extractPattern: m.extractPattern,
+        extractGroup: m.extractGroup,
+        valueEdits:
+          (m.valueEdits as
+            | Array<{
+                type: "add_prefix" | "add_suffix" | "replace_single" | "replace_multiple";
+                value?: string | null;
+                from?: string | null;
+                to?: string | null;
+                pairs?: Array<{ from: string; to: string }>;
+              }>
+            | null) ?? [],
       }))}
     />
   );

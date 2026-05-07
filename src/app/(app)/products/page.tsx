@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -13,11 +13,15 @@ type Product = {
   id: string;
   externalId: string | null;
   title: string;
+  description?: string | null;
   brand: string | null;
   price: number | null;
   currency: string | null;
   availability: string | null;
   imageLink: string | null;
+  productUrl?: string | null;
+  createdAt?: string;
+  data?: Record<string, unknown>;
 };
 
 type Store = { id: string; name: string };
@@ -32,6 +36,7 @@ export default function ProductsPage() {
   const [availability, setAvailability] = useState<string>("");
   const [stores, setStores] = useState<Store[]>([]);
   const [loading, setLoading] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   useEffect(() => {
     fetch("/api/stores")
@@ -97,6 +102,7 @@ export default function ProductsPage() {
   );
 
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  const selectedDataEntries = Object.entries(selectedProduct?.data ?? {}).slice(0, 80);
 
   return (
     <div className="space-y-6">
@@ -151,6 +157,7 @@ export default function ProductsPage() {
         columns={columns}
         data={items}
         emptyMessage={loading ? "Loading…" : "No products. Upload a CSV to a store to get started."}
+        onRowClick={(row) => setSelectedProduct(row)}
       />
 
       <div className="flex items-center justify-end gap-3 text-sm">
@@ -169,6 +176,129 @@ export default function ProductsPage() {
           Next
         </Button>
       </div>
+
+      {selectedProduct && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4"
+          onClick={() => setSelectedProduct(null)}
+        >
+          <div
+            className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-xl border border-[#f4c400]/35 bg-white p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-bold text-[#111111]">{selectedProduct.title || "(untitled)"}</h2>
+                <p className="text-sm text-muted-foreground">
+                  Product details · ID {selectedProduct.externalId || selectedProduct.id}
+                </p>
+              </div>
+              <Button variant="outline" onClick={() => setSelectedProduct(null)}>
+                Close
+              </Button>
+            </div>
+
+            <div className="grid gap-6 md:grid-cols-3">
+              <div className="md:col-span-1">
+                {selectedProduct.imageLink ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={selectedProduct.imageLink}
+                    alt={selectedProduct.title}
+                    className="h-56 w-full rounded-lg border object-cover"
+                  />
+                ) : (
+                  <div className="flex h-56 w-full items-center justify-center rounded-lg border bg-muted text-sm text-muted-foreground">
+                    No image
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-3 md:col-span-2">
+                <InfoRow label="Title" value={selectedProduct.title} />
+                <InfoRow label="External ID" value={selectedProduct.externalId || "—"} />
+                <InfoRow label="Brand" value={selectedProduct.brand || "—"} />
+                <InfoRow
+                  label="Price"
+                  value={
+                    selectedProduct.price != null
+                      ? `${selectedProduct.price} ${selectedProduct.currency ?? ""}`.trim()
+                      : "—"
+                  }
+                />
+                <InfoRow
+                  label="Availability"
+                  value={
+                    <Badge
+                      variant={
+                        (selectedProduct.availability ?? "").toLowerCase().includes("out")
+                          ? "destructive"
+                          : "success"
+                      }
+                    >
+                      {selectedProduct.availability || "—"}
+                    </Badge>
+                  }
+                />
+                <InfoRow
+                  label="Product URL"
+                  value={
+                    selectedProduct.productUrl ? (
+                      <a
+                        href={selectedProduct.productUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[#111111] underline"
+                      >
+                        Open product page
+                      </a>
+                    ) : (
+                      "—"
+                    )
+                  }
+                />
+              </div>
+            </div>
+
+            {selectedProduct.description && (
+              <div className="mt-6 rounded-lg border bg-[#fffdf4] p-4">
+                <p className="mb-1 text-sm font-semibold text-[#111111]">Description</p>
+                <p className="text-sm text-[#111111]/90">{selectedProduct.description}</p>
+              </div>
+            )}
+
+            <div className="mt-6">
+              <h3 className="mb-2 text-sm font-semibold text-[#111111]">Raw product fields</h3>
+              <div className="max-h-72 overflow-auto rounded-lg border">
+                <table className="w-full text-sm">
+                  <tbody>
+                    {selectedDataEntries.length === 0 && (
+                      <tr>
+                        <td className="p-3 text-muted-foreground">No raw fields available.</td>
+                      </tr>
+                    )}
+                    {selectedDataEntries.map(([k, v]) => (
+                      <tr key={k} className="border-b last:border-b-0">
+                        <td className="w-1/3 bg-muted/30 p-2 font-medium">{k}</td>
+                        <td className="p-2">{String(v ?? "")}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function InfoRow({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div className="grid grid-cols-3 gap-3 rounded-md border p-2">
+      <span className="text-sm text-muted-foreground">{label}</span>
+      <div className="col-span-2 text-sm font-medium text-[#111111]">{value}</div>
     </div>
   );
 }

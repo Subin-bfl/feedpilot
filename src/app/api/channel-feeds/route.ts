@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { requireStore, requireTenant } from "@/lib/tenant";
+import { requireStore, requireTenant, requireWriteAccess } from "@/lib/tenant";
 import { jsonError } from "@/lib/api";
 
 const Input = z.object({
@@ -33,7 +33,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const t = await requireTenant();
+    const t = await requireWriteAccess();
     const body = Input.parse(await req.json());
     await requireStore(body.storeId, t.organizationId);
 
