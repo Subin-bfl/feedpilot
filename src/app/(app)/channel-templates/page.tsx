@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { requireTenant } from "@/lib/tenant";
 import { TemplateCard } from "./TemplateCard";
+import { Button } from "@/components/ui/button";
 
 type TemplateFieldType = "string" | "url" | "price" | "number";
 type TemplateField = {
@@ -25,6 +26,16 @@ export default async function TemplatesPage() {
           Field schemas used when generating feeds for each channel.
         </p>
       </div>
+      {templates.length === 0 && (
+        <div className="rounded-md border bg-white p-4">
+          <p className="text-sm text-muted-foreground">
+            No templates found for this organization.
+          </p>
+          <form action="/api/channel-templates/seed-defaults" method="post" className="mt-3">
+            <Button type="submit">Create default templates</Button>
+          </form>
+        </div>
+      )}
       <div className="grid gap-4 md:grid-cols-2">
         {templates.map((tpl) => {
           const fields =

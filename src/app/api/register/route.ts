@@ -3,6 +3,7 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
 import { jsonError } from "@/lib/api";
+import { ensureDefaultTemplates } from "@/services/defaultTemplates";
 
 const Body = z.object({
   email: z.string().email(),
@@ -53,6 +54,7 @@ export async function POST(req: Request) {
       await tx.organizationMember.create({
         data: { userId: u.id, organizationId: org.id, role: "OWNER" },
       });
+      await ensureDefaultTemplates(tx as any, org.id);
       return u;
     });
 
