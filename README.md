@@ -48,11 +48,13 @@ npm install
 
 # 2. configure env
 cp .env.example .env
-# fill DATABASE_URL, REDIS_URL (optional), NEXTAUTH_SECRET, NEXTAUTH_URL, APP_URL
+# fill DATABASE_URL, DIRECT_URL, REDIS_URL (optional), NEXTAUTH_SECRET, NEXTAUTH_URL, APP_URL
 
 # 3. database
 npm run prisma:generate
-npm run prisma:migrate
+npx prisma db push
+
+# optional demo data
 npm run prisma:seed
 
 # 4. dev server
@@ -60,6 +62,10 @@ npm run dev
 ```
 
 The seed creates a demo org, one store, 20 sample products, all five channel templates (Google, Meta, TikTok, Microsoft, Custom), one Google channel feed mapped + 3 sample rules.
+
+Notes:
+- The seed **does not print demo credentials** by default. Set `SHOW_DEMO_CREDENTIALS=true` when running it if you want them printed locally.
+- If you only need channel templates (not full demo data), go to **Templates** and click **Create default templates**.
 
 ### Optional: BullMQ worker
 
@@ -76,16 +82,19 @@ The same worker also runs scheduled XML URL sync for stores (checks due stores e
 ## Railway deployment
 
 1. Create a new Railway project.
-2. Provision **Redis** plugin if you want the worker (optional for the app itself).
+2. Provision **PostgreSQL** plugin (required) and **Redis** plugin if you want the worker (optional for the app itself).
 3. Create a service from this repo.
 4. Set env vars from `.env.example`:
-   - **Supabase Postgres**:
-     - `DATABASE_URL`: use Supabase **pooler/transaction** URL if you want (recommended for serverless), otherwise you can use the direct URL.
-     - `DIRECT_URL`: Supabase **direct** connection string (used by Prisma for migrations).
+   - **Railway Postgres**:
+     - Railway auto-provides `DATABASE_URL`
+     - Set `DIRECT_URL` to the **same value** as `DATABASE_URL`
+   - **Supabase Postgres (optional alternative)**:
+     - `DATABASE_URL`: Supabase pooler URL (IPv4 recommended) or direct URL
+     - `DIRECT_URL`: Supabase direct connection string (migrations/schema)
    - **Redis (optional)**: set `REDIS_URL` if running the worker.
 5. `railway.json` controls the lifecycle:
    - **build:** `npm ci && npm run build` (which runs `prisma generate && next build`)
-   - **release/start:** `npx prisma migrate deploy && npm run start` (binds to `$PORT`, uses `DIRECT_URL` for migrations)
+   - **release/start:** `npx prisma db push && npm run start` (binds to `$PORT`; this repo does not ship `prisma/migrations`)
    - **healthcheck:** `GET /api/health`
 
 The app is fully ephemeral-safe: uploaded files are parsed in memory and the parsed JSON is persisted to Postgres immediately. No local file storage anywhere.
