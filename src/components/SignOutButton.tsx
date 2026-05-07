@@ -9,10 +9,9 @@ export function SignOutButton() {
       variant="outline"
       size="sm"
       onClick={async () => {
-        // In some hosted setups the NextAuth redirect can be swallowed by the app router.
-        // Force a hard navigation after sign-out so cookies/session are cleared reliably.
-        await signOut({ redirect: false });
-        window.location.href = "/login";
+        // Ensure cookies are cleared, then hard-navigate.
+        const res = await signOut({ redirect: false, callbackUrl: "/login" });
+        window.location.assign(res?.url ?? "/login");
       }}
     >
       Sign out
