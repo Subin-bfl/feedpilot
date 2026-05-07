@@ -16,7 +16,7 @@ export function SignOutButton() {
           const res = await signOut({ redirect: false, callbackUrl: "/login" });
           window.location.assign(res?.url ?? "/login");
         } catch {
-          window.location.assign("/api/auth/signout?callbackUrl=/login");
+          window.location.assign("/api/logout");
         }
       }}
     >
