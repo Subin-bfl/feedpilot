@@ -22,10 +22,9 @@ export default function LoginPage() {
           Login to your account
         </CardTitle>
         <CardDescription>
-          Welcome to <span className="font-medium text-[#111111]">BFL Feed Management Tool</span>. Use
-          the demo account or{" "}
+          Welcome to <span className="font-medium text-[#111111]">BFL Feed Management Tool</span>.{" "}
           <Link href="/register" className="underline">
-            create a new one
+            Create an account
           </Link>
           .
         </CardDescription>
@@ -42,8 +41,8 @@ export default function LoginPage() {
 function LoginForm() {
   const router = useRouter();
   const sp = useSearchParams();
-  const [email, setEmail] = useState("demo@feedpilot.dev");
-  const [password, setPassword] = useState("demo1234");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -76,6 +75,7 @@ function LoginForm() {
           required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
+          placeholder="you@company.com"
         />
       </div>
       <div className="flex flex-col gap-2">
@@ -87,6 +87,7 @@ function LoginForm() {
           required
           value={password}
           onChange={(e) => setPassword(e.target.value)}
+          placeholder="••••••••"
         />
       </div>
       {error && <p className="text-sm text-destructive">{error}</p>}
