@@ -28,7 +28,7 @@ A multi-tenant SaaS for product feed management — import **CSV or XML** produc
 - Export to CSV and XML (RSS 2.0 / Google Shopping–style)
 - Duplicate channel feed configs across channels in one click
 - Store-level XML feed URL sync with user-selected cadence (**hourly / daily / weekly**)
-- Automatic XML sync processing in worker (imports latest products, stock, and field updates)
+- Automatic XML sync via a **dedicated scheduler process** (polls every minute; not the BullMQ worker). Local: second terminal; Railway: bundled with `start:web+xml` (see below).
 - Automatic channel-feed refresh after XML sync (updates source feed link + regenerates validation/score)
 - Manual "Sync now" trigger for store XML URL ingestion
 - Delete actions in UI for stores and channel feeds
@@ -109,6 +109,23 @@ The **BullMQ worker** (`npm run worker`, requires `REDIS_URL`) is only for queue
 
 The app is fully ephemeral-safe: uploaded files are parsed in memory and the parsed JSON is persisted to Postgres immediately. No local file storage anywhere.
 
+## Local + Railway (same codebase)
+
+Cursor agents follow **`.cursor/rules/local-and-railway.mdc`** (`alwaysApply`): every change should behave on **http://localhost** (Windows dev) and **https://** on Railway (reverse proxy, internal bind hosts).
+
+| Script | When |
+|--------|------|
+| `npm run dev` | Next.js dev server |
+| `npm run clean` | Deletes `.next` (use if CSS/chunks 404 or odd build state; do not run `next build` while `dev` is running on Windows) |
+| `npm run xml-sync-scheduler` | **Local only:** run in a **second** terminal with `dev` so store XML schedules (hourly/daily/weekly) run |
+| `npm run start` | Production Next only (no XML scheduler) |
+| `npm run start:web+xml` | **Railway default:** Next + XML scheduler in one process group (`scripts/start-web-and-xml-scheduler.mjs`) |
+| `npm run worker` | BullMQ + Redis only — **queued** channel-feed generation, **not** the XML URL schedule |
+
+**Auth URLs:** `getPublicOriginFromRequest` (`src/lib/publicOrigin.ts`) builds redirect origins from forwarded `Host` / `X-Forwarded-*`, then `APP_URL` / `NEXTAUTH_URL`. **Sign out** uses NextAuth `signOut` with `window.location.origin` for `callbackUrl`. On Railway, set **`NEXTAUTH_URL`** and **`APP_URL`** to your real **`https://…`** URL (never `localhost` there).
+
+**Roles:** The **Users** sidebar entry is shown only for **`OWNER`** and **`ADMIN`** (`isAdminRole` in `src/lib/tenant.ts`). The `/users` route remains admin-guarded server-side.
+
 ## Process flow
 
 ```
@@ -128,6 +145,7 @@ Upload CSV / XML  →  parse → store rows as JSON
 | `POST` | `/api/register` | Sign up — creates user + organization |
 | `*` | `/api/auth/[...nextauth]` | NextAuth credentials |
 | `GET` | `/api/health` | Healthcheck (used by Railway) |
+| `GET` | `/api/logout` | Clears NextAuth cookies and redirects to `/login` (optional; UI uses NextAuth `signOut`) |
 | `GET/POST` | `/api/stores` | List + create stores |
 | `GET/PATCH/DELETE` | `/api/stores/[id]` | Store detail / update / delete |
 | `POST` | `/api/stores/[id]/sync` | Manual XML URL sync for a store |
@@ -154,14 +172,14 @@ Upload CSV / XML  →  parse → store rows as JSON
 src/
   app/
     layout.tsx                provider wrapper
-    page.tsx                  redirect → /login or /dashboard
+    page.tsx                  redirect → /login (entry); signed-in users bounce to /dashboard from login layout
     globals.css
     providers.tsx             NextAuth SessionProvider
 
-    (auth)/login              email/password sign-in
+    (auth)/login              email/password sign-in (+ layout: session → /dashboard)
     (auth)/register           sign up + creates org
 
-    (app)/layout.tsx          authed shell + sidebar
+    (app)/layout.tsx          authed shell + sidebar (Users link admin-only)
     (app)/dashboard
     (app)/stores              + new + [id]
     (app)/stores/[id]/FeedUploader.tsx     CSV + XML upload UI
@@ -178,7 +196,21 @@ src/
     FeedPreview.tsx           transformed / source / diff (with cell-level highlight)
     ValidationPanel.tsx
     ChannelFeedPicker.tsx     server component used by top-level /mapping etc.
-    SignOutButton.tsx
+    SignOutButton.tsx         NextAuth signOut → `/login` on current origin
+
+  lib/
+    publicOrigin.ts           public URL for redirects behind proxies (local + Railway)
+    xmlSyncScheduler.ts       minute poll → `syncDueStoresFromXmlUrl`
+    auth.ts                   NextAuth credentials + JWT/session typing
+    db.ts                     Prisma client singleton
+    redis.ts                  IORedis singleton (lazy)
+    queue.ts                  BullMQ queue helpers (no-op if no Redis)
+    tenant.ts                 requireTenant / isAdminRole / requireStore / requireChannelFeed
+    api.ts                    jsonError helper (Zod / TenantError → JSON)
+    utils.ts                  cn(), formatDate()
+
+  scripts/
+    xmlSyncSchedulerDaemon.ts entry for `npm run xml-sync-scheduler`
 
   services/
     feedParser.ts             parseCSV + parseXML + detectFormat + parseFeed
@@ -190,20 +222,14 @@ src/
     feedPipeline.ts           orchestrator used by API + worker
     ai.ts                     mock suggestions
 
-  lib/
-    auth.ts                   NextAuth credentials + JWT/session typing
-    db.ts                     Prisma client singleton
-    redis.ts                  IORedis singleton (lazy)
-    queue.ts                  BullMQ queue helpers (no-op if no Redis)
-    tenant.ts                 requireTenant / requireStore / requireChannelFeed
-    api.ts                    jsonError helper (Zod / TenantError → JSON)
-    utils.ts                  cn(), formatDate()
-
   workers/
-    feed.worker.ts            BullMQ worker — runs the same pipeline async
+    feed.worker.ts            BullMQ worker — channel-feed jobs only (no XML poll loop)
 
-  middleware.ts               auth-gates /dashboard, /stores, /products,
-                              /channel-feeds, /channel-templates
+  middleware.ts               NextAuth `withAuth` — matcher includes bare paths
+                              (e.g. `/dashboard`, `/stores`, …) and nested routes
+
+scripts/   (repo root, not under src/)
+  start-web-and-xml-scheduler.mjs   spawns `xml-sync-scheduler` + `next start` (Railway)
 
 prisma/
   schema.prisma               core models + enums for sync, mapping, rules, exports, jobs
@@ -221,7 +247,8 @@ To resume quickly in a future chat/session:
    - `npm run prisma:generate`
    - `npx prisma db push`
    - `npm run dev`
-   - `npm run worker` (for scheduled XML sync behavior)
+   - In a **second** terminal: `npm run xml-sync-scheduler` (store XML **schedule**; optional)
+   - `npm run worker` only if you use Redis for **queued** channel-feed generation
 4. Validate critical flows:
    - Store XML URL sync schedule + manual sync
    - Channel feed mapping + value edits + rules
@@ -241,7 +268,7 @@ Every query is scoped through `requireTenant()` (extracts `organizationId` from 
 | `DATABASE_URL` | Postgres connection string (Railway plugin) |
 | `REDIS_URL` | Optional. Enables BullMQ worker / queueing |
 | `NEXTAUTH_SECRET` | Long random string |
-| `NEXTAUTH_URL` | Public URL of the app |
-| `APP_URL` | Public URL (used in callbacks/exports) |
+| `NEXTAUTH_URL` | Public base URL of the app. **Local:** `http://localhost:3000`. **Railway:** your real `https://…` service URL (must not be `localhost`). |
+| `APP_URL` | Same intent as `NEXTAUTH_URL` (exports, redirects). Keep in sync with the URL users open in the browser. |
 | `NODE_ENV` | `development` / `production` |
 | `PORT` | Provided by Railway; respected by `npm run start` |

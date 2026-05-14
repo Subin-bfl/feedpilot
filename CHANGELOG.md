@@ -2,6 +2,30 @@
 
 All notable changes to this project are documented in this file.
 
+## 2026-05-14
+
+### Added
+- **XML URL sync scheduler** as its own process: `src/lib/xmlSyncScheduler.ts`, `src/scripts/xmlSyncSchedulerDaemon.ts`, npm script `npm run xml-sync-scheduler` (polls every minute, runs `syncDueStoresFromXmlUrl`).
+- **Railway combined start**: `scripts/start-web-and-xml-scheduler.mjs` and `npm run start:web+xml`; `railway.json` `startCommand` runs `npx prisma db push && npm run start:web+xml` so scheduled store XML sync works without a separate Redis worker.
+- **`npm run clean`**: removes `.next` to recover from stale or corrupted Next.js build output (especially on Windows when `dev` and `build` overlap).
+- **`dotenv`** dependency for the scheduler daemon loading `.env` outside Next.
+- **`src/lib/publicOrigin.ts`**: resolves the browser-facing origin from proxy headers (`Host`, `X-Forwarded-*`) and `APP_URL` / `NEXTAUTH_URL`, so redirects work on Railway (internal bind) and on `localhost` dev.
+- **`.cursor/rules/local-and-railway.mdc`** (`alwaysApply: true`): project rule that changes must work locally and on Railway.
+- **`(auth)/login/layout.tsx`**: if a session already exists, visiting `/login` redirects to `/dashboard`.
+- **`GET /api/logout`**: optional server sign-out that sweeps NextAuth cookie names (including chunked session tokens) with both `secure` variants for reliable deletion.
+
+### Changed
+- **Root `/`**: always redirects to **`/login`** first (public entry); signed-in users are forwarded to `/dashboard` from the login layout.
+- **NextAuth sign-out**: `SignOutButton` and profile flows use **`signOut({ callbackUrl: `${window.location.origin}/login` })`** so cookies clear correctly on http (local) and https (Railway).
+- **`feed.worker.ts`**: BullMQ job processor only; **removed** the XML sync `setInterval` loop (scheduler is no longer tied to Redis / worker).
+- **README / `.env.example`**: clarified `NEXTAUTH_URL` / `APP_URL` for Railway vs localhost; troubleshooting for sign-out and session cookies.
+- **Middleware matcher**: explicit bare paths (e.g. `/dashboard`, `/stores`) plus `/:path*` variants for consistent `withAuth` coverage.
+- **Sidebar navigation**: **Users** link is shown only for **`OWNER`** and **`ADMIN`** (`isAdminRole`); `STANDARD` and `READONLY` do not see it ( `/users` remains server-guarded).
+
+### Fixed
+- **Railway sign-out / redirect host**: avoid building redirect URLs from internal bind hosts (`127.0.0.1`, etc.); treat **`localhost`** as a valid dev hostname when resolving origins (fixes local redirects after stricter public-host logic).
+- **Documentation**: corrected README claims that XML schedule ran inside the BullMQ worker; aligned “Resume work later” with `xml-sync-scheduler` vs `worker` roles.
+
 ## 2026-05-07
 
 ### Added
