@@ -3,6 +3,7 @@ import Image from "next/image";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { isAdminRole } from "@/lib/tenant";
 import { SignOutButton } from "@/components/SignOutButton";
 
 const NAV = [
@@ -11,13 +12,17 @@ const NAV = [
   { href: "/products", label: "Products" },
   { href: "/channel-feeds", label: "Channel Feeds" },
   { href: "/channel-templates", label: "Templates" },
-  { href: "/users", label: "Users" },
+  /** Shown only when `isAdminRole` — OWNER or ADMIN (not STANDARD / READONLY). */
+  { href: "/users", label: "Users", adminOnly: true },
   { href: "/profile", label: "Profile" },
-];
+] as const;
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
+
+  const role = session.user.orgRole;
+  const navItems = NAV.filter((n) => !("adminOnly" in n && n.adminOnly) || isAdminRole(role));
 
   return (
     <div className="flex min-h-screen bg-[linear-gradient(180deg,#fffef7_0%,#f7f7f7_100%)]">
@@ -35,7 +40,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <p className="text-xs text-muted-foreground">{session.user?.email}</p>
         </div>
         <nav className="flex flex-col gap-1">
-          {NAV.map((n) => (
+          {navItems.map((n) => (
             <Link
               key={n.href}
               href={n.href}
