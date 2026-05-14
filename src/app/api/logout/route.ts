@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getPublicOriginFromRequest } from "@/lib/publicOrigin";
 
 function expireCookie(res: NextResponse, name: string) {
   res.cookies.set({
@@ -10,8 +11,8 @@ function expireCookie(res: NextResponse, name: string) {
 }
 
 export async function GET(req: Request) {
-  const url = new URL(req.url);
-  const redirectTo = new URL("/login", url.origin);
+  const origin = getPublicOriginFromRequest(req);
+  const redirectTo = new URL("/login", origin);
   const res = NextResponse.redirect(redirectTo, 302);
 
   // NextAuth cookie names differ between http/local and https/prod.

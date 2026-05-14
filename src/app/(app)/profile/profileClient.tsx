@@ -70,7 +70,7 @@ export function ProfileClient({ initial }: Props) {
       if (!res.ok) throw new Error(j.error ?? "Switch failed");
 
       // Active org is embedded in the NextAuth JWT; force a fresh sign-in so session reflects it.
-      await signOut({ callbackUrl: "/login" });
+      await signOut({ callbackUrl: `${window.location.origin}/login` });
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Switch failed");
       setSwitching(false);
@@ -85,7 +85,7 @@ export function ProfileClient({ initial }: Props) {
       const res = await fetch("/api/account", { method: "DELETE" });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(j.error ?? "Delete failed");
-      await signOut({ callbackUrl: "/login" });
+      await signOut({ callbackUrl: `${window.location.origin}/login` });
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Delete failed");
       setDeleting(false);
