@@ -101,6 +101,7 @@ The **BullMQ worker** (`npm run worker`, requires `REDIS_URL`) is only for queue
      - `DIRECT_URL`: Supabase direct connection string (migrations/schema)
    - **Redis (optional)**: set `REDIS_URL` if running the worker.
    - **`NEXTAUTH_URL` and `APP_URL`**: set both to your **public** app URL (for example `https://your-service.up.railway.app`). Do **not** leave `localhost` here on Railway — it breaks auth redirects, sign-out, and public feed links even though the app is reachable on the platform URL.
+   - **Still seeing the dashboard right after “sign out” or wrong redirect host?** The session cookie was probably not cleared (wrong `secure`/cookie name) or `NEXTAUTH_URL`/`APP_URL` still point at localhost. Use the real `https://…` Railway URL for both, redeploy, then try sign out again (or clear cookies once).
 5. `railway.json` controls the lifecycle:
    - **build:** `npm ci && npm run build` (which runs `prisma generate && next build`)
    - **release/start:** `npx prisma db push && npm run start:web+xml` (starts Next.js and the XML sync scheduler; binds to `$PORT`; this repo does not ship `prisma/migrations`)
