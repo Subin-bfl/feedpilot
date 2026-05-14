@@ -1,0 +1,29 @@
+---
+description: Every change must work locally (Windows/localhost) and on Railway; shared patterns for auth, URLs, builds, and workers
+alwaysApply: true
+---
+
+# Local + Railway (feedpilot)
+
+Treat **one codebase** for **local** (`npm run dev`, `http://localhost:3000`) and **Railway** (`https://…`, reverse proxy). Do not ship fixes that only work in one environment.
+
+## URLs and redirects
+
+- Use **`getPublicOriginFromRequest`** from `src/lib/publicOrigin.ts` for any server redirect or absolute URL built from a `Request` (e.g. logout, callbacks). It must keep **`localhost`** valid for dev and ignore **127.0.0.1 / private bind** Host values; fall back to **`APP_URL` / `NEXTAUTH_URL`** when headers are internal.
+- **Railway:** set **`NEXTAUTH_URL`** and **`APP_URL`** to the real public **`https://…`** URL (not localhost). **Local:** keep them as **`http://localhost:3000`** in `.env`.
+- Prefer **NextAuth client `signOut({ callbackUrl: `${window.location.origin}/login` })`** for sign-out so cookies match http vs https. Custom `/api/logout` must clear **both** `secure: true` and `secure: false` cookie variants if extended.
+
+## Next.js on Windows
+
+- Do **not** run **`npm run build`** while **`npm run dev`** is running on the same clone (locks Prisma engine / corrupts `.next`).
+- If the UI loses CSS or chunks 404: **`npm run clean`**, then restart dev.
+
+## XML sync scheduler
+
+- **Local:** `npm run dev` **and** `npm run xml-sync-scheduler` (second terminal) for scheduled store XML sync.
+- **Railway:** `railway.json` uses **`npm run start:web+xml`** (web + scheduler). Do not require Redis for that schedule unless the product requirement changes and docs are updated.
+
+## Before finishing a change
+
+- Mentally verify **both**: localhost dev (http, `Host: localhost`) and Railway (https, forwarded Host / env URL).
+- If touching auth, redirects, cookies, or public URLs, re-read **`src/lib/publicOrigin.ts`** and **`src/app/api/logout/route.ts`** and align with the patterns above.
