@@ -59,6 +59,9 @@ npm run prisma:seed
 
 # 4. dev server
 npm run dev
+
+# 5. (optional) scheduled XML URL sync from store settings — run in a second terminal:
+npm run xml-sync-scheduler
 ```
 
 The seed creates a demo org, one store, 20 sample products, all five channel templates (Google, Meta, TikTok, Microsoft, Custom), one Google channel feed mapped + 3 sample rules.
@@ -77,7 +80,12 @@ npm run worker
 
 Synchronous generation via `POST /api/channel-feeds/[id]/generate` works without Redis; the worker just lets you offload long-running runs.
 
-The same worker also runs scheduled XML URL sync for stores (checks due stores every minute and executes based on each store's selected frequency).
+**Scheduled XML URL sync** (hourly / daily / weekly per store) runs in a **small sidecar process** that polls every minute, checks which stores are due, fetches the XML, updates products, and regenerates channel feeds.
+
+- **Local development:** run `npm run dev` **and**, in a second terminal, `npm run xml-sync-scheduler` (same `.env` / database as the app). Without the scheduler process, only **Sync now** on the store page will refresh XML.
+- **Production (Railway):** the default `start:web+xml` command (see `railway.json`) starts both `next start` and `xml-sync-scheduler` in one deploy, so schedules work without a separate Redis worker.
+
+The **BullMQ worker** (`npm run worker`, requires `REDIS_URL`) is only for queued channel-feed generation jobs, not for this XML schedule.
 
 ## Railway deployment
 
@@ -94,7 +102,7 @@ The same worker also runs scheduled XML URL sync for stores (checks due stores e
    - **Redis (optional)**: set `REDIS_URL` if running the worker.
 5. `railway.json` controls the lifecycle:
    - **build:** `npm ci && npm run build` (which runs `prisma generate && next build`)
-   - **release/start:** `npx prisma db push && npm run start` (binds to `$PORT`; this repo does not ship `prisma/migrations`)
+   - **release/start:** `npx prisma db push && npm run start:web+xml` (starts Next.js and the XML sync scheduler; binds to `$PORT`; this repo does not ship `prisma/migrations`)
    - **healthcheck:** `GET /api/health`
 
 The app is fully ephemeral-safe: uploaded files are parsed in memory and the parsed JSON is persisted to Postgres immediately. No local file storage anywhere.

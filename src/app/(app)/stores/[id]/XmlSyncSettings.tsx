@@ -95,7 +95,14 @@ export function XmlSyncSettings(props: Props) {
         </Button>
       </div>
       <div className="text-sm text-muted-foreground">
-        <p>Last sync: {xmlLastSyncAt ? new Date(xmlLastSyncAt).toLocaleString() : "Never"}</p>
+        <p>
+          The scheduler checks about every minute whether your frequency window has passed, then runs a full sync (same
+          as &quot;Sync now&quot;). On your machine, run <code className="rounded bg-muted px-1 py-0.5">npm run xml-sync-scheduler</code> in a second terminal
+          alongside <code className="rounded bg-muted px-1 py-0.5">npm run dev</code>; hosted deploys start it automatically with the web server.
+        </p>
+        <p className="mt-2">
+          Last sync: {xmlLastSyncAt ? new Date(xmlLastSyncAt).toLocaleString() : "Never"}
+        </p>
         {xmlLastSyncError && <p className="text-destructive">Last error: {xmlLastSyncError}</p>}
       </div>
       {message && <p className="text-sm text-emerald-600">{message}</p>}

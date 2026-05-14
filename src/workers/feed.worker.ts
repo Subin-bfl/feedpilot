@@ -5,7 +5,6 @@ import { prisma } from "@/lib/db";
 import { generateFeed } from "@/services/feedPipeline";
 import { FEED_QUEUE } from "@/lib/queue";
 import type { ChannelFieldDef } from "@/services/feedValidator";
-import { syncDueStoresFromXmlUrl } from "@/services/storeXmlSync";
 
 if (!process.env.REDIS_URL) {
   console.error("REDIS_URL is required to run the worker.");
@@ -62,23 +61,3 @@ worker.on("failed", (job, err) =>
 );
 
 console.log(`Worker listening on queue "${FEED_QUEUE}"`);
-
-let xmlSyncLoopRunning = false;
-
-async function runXmlSyncLoop() {
-  if (xmlSyncLoopRunning) return;
-  xmlSyncLoopRunning = true;
-  try {
-    await syncDueStoresFromXmlUrl();
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown scheduler error";
-    console.error(`XML sync scheduler failed: ${message}`);
-  } finally {
-    xmlSyncLoopRunning = false;
-  }
-}
-
-void runXmlSyncLoop();
-setInterval(() => {
-  void runXmlSyncLoop();
-}, 60_000);
