@@ -2,6 +2,24 @@
 
 All notable changes to this project are documented in this file.
 
+## 2026-05-15
+
+### Added
+- **`src/lib/xmlSyncConfig.ts`**: reads `XML_FETCH_TIMEOUT_MS` and `XML_SYNC_TRANSACTION_TIMEOUT_MS` for store XML URL sync (large / slow remote feeds).
+- **`.env.example`**: documents optional XML sync timeout variables.
+
+### Changed
+- **Store XML URL sync** (`src/services/storeXmlSync.ts`):
+  - XML download timeout default raised from **30s to 3 minutes** (`XML_FETCH_TIMEOUT_MS`, default `180000`).
+  - Prisma import transaction timeout default **5 minutes** (`XML_SYNC_TRANSACTION_TIMEOUT_MS`, default `300000`) so large product imports are not cut off by the former 5s interactive transaction default.
+  - Clear error when the download aborts, with guidance to raise `XML_FETCH_TIMEOUT_MS`.
+  - When **`REDIS_URL`** is set, channel-feed regeneration after sync is **queued** via BullMQ (`enqueueGenerate`) instead of blocking the HTTP request; UI notes that the worker must be running.
+- **`POST /api/stores/[id]/sync`**: `maxDuration = 300` for platforms that honor route duration limits; response includes `{ channelFeedsQueued: boolean }`.
+- **`XmlSyncSettings`**: success message distinguishes full inline sync vs background channel-feed updates.
+
+### Fixed
+- **Heavy / large XML feeds** timing out during manual “Sync now” or scheduled sync (download cap and Prisma transaction budget).
+
 ## 2026-05-14
 
 ### Added

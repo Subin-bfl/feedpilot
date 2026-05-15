@@ -31,6 +31,7 @@ A multi-tenant SaaS for product feed management — import **CSV or XML** produc
 - Automatic XML sync via a **dedicated scheduler process** (polls every minute; not the BullMQ worker). Local: second terminal; Railway: bundled with `start:web+xml` (see below).
 - Automatic channel-feed refresh after XML sync (updates source feed link + regenerates validation/score)
 - Manual "Sync now" trigger for store XML URL ingestion
+- Configurable timeouts for **large / slow XML URL feeds** (`XML_FETCH_TIMEOUT_MS`, `XML_SYNC_TRANSACTION_TIMEOUT_MS`)
 - Delete actions in UI for stores and channel feeds
 - Editable channel templates (update schema and add/remove attributes)
 - Stable public XML URL per channel feed (`/api/public/channel-feeds/[token]/feed.xml`) that always renders latest data
@@ -85,7 +86,31 @@ Synchronous generation via `POST /api/channel-feeds/[id]/generate` works without
 - **Local development:** run `npm run dev` **and**, in a second terminal, `npm run xml-sync-scheduler` (same `.env` / database as the app). Without the scheduler process, only **Sync now** on the store page will refresh XML.
 - **Production (Railway):** the default `start:web+xml` command (see `railway.json`) starts both `next start` and `xml-sync-scheduler` in one deploy, so schedules work without a separate Redis worker.
 
-The **BullMQ worker** (`npm run worker`, requires `REDIS_URL`) is only for queued channel-feed generation jobs, not for this XML schedule.
+The **BullMQ worker** (`npm run worker`, requires `REDIS_URL`) is only for queued channel-feed generation jobs, not for this XML schedule. When Redis is configured, **channel-feed regeneration after XML sync** is also queued (so “Sync now” returns faster); run the worker so scores/validation update.
+
+### Large or slow XML URL feeds
+
+Store XML sync downloads the remote feed, parses it, imports products in a Prisma transaction, then refreshes channel feeds.
+
+| Limit | Default | Env var |
+|-------|---------|---------|
+| Download | 3 minutes | `XML_FETCH_TIMEOUT_MS` |
+| DB import transaction | 5 minutes | `XML_SYNC_TRANSACTION_TIMEOUT_MS` |
+
+If sync fails with a **timeout** (especially on large catalogs):
+
+1. Add to `.env` (and Railway variables), then redeploy / restart dev:
+
+   ```env
+   XML_FETCH_TIMEOUT_MS=300000
+   XML_SYNC_TRANSACTION_TIMEOUT_MS=600000
+   ```
+
+2. Confirm the XML URL responds in a browser or `curl` (a very slow upstream needs a higher fetch timeout).
+3. On Railway with Redis: run **`npm run worker`** (or a worker service) so queued channel-feed jobs complete after sync.
+4. Check the store’s **XML sync** panel for `xmlLastSyncError`.
+
+Parsing loads the full XML into memory; extremely large feeds may also need more container RAM on Railway.
 
 ## Railway deployment
 
@@ -99,7 +124,8 @@ The **BullMQ worker** (`npm run worker`, requires `REDIS_URL`) is only for queue
    - **Supabase Postgres (optional alternative)**:
      - `DATABASE_URL`: Supabase pooler URL (IPv4 recommended) or direct URL
      - `DIRECT_URL`: Supabase direct connection string (migrations/schema)
-   - **Redis (optional)**: set `REDIS_URL` if running the worker.
+   - **Redis (optional)**: set `REDIS_URL` if running the worker (queued channel-feed generation and post–XML-sync regeneration).
+   - **Large XML feeds (optional)**: `XML_FETCH_TIMEOUT_MS`, `XML_SYNC_TRANSACTION_TIMEOUT_MS` — see [Large or slow XML URL feeds](#large-or-slow-xml-url-feeds).
    - **`NEXTAUTH_URL` and `APP_URL`**: set both to your **public** app URL (for example `https://your-service.up.railway.app`). Do **not** leave `localhost` here on Railway — it breaks auth redirects, sign-out, and public feed links even though the app is reachable on the platform URL.
    - **Still seeing the dashboard right after “sign out” or wrong redirect host?** The session cookie was probably not cleared (wrong `secure`/cookie name) or `NEXTAUTH_URL`/`APP_URL` still point at localhost. Use the real `https://…` Railway URL for both, redeploy, then try sign out again (or clear cookies once).
 5. `railway.json` controls the lifecycle:
@@ -120,7 +146,7 @@ Cursor agents follow **`.cursor/rules/local-and-railway.mdc`** (`alwaysApply`): 
 | `npm run xml-sync-scheduler` | **Local only:** run in a **second** terminal with `dev` so store XML schedules (hourly/daily/weekly) run |
 | `npm run start` | Production Next only (no XML scheduler) |
 | `npm run start:web+xml` | **Railway default:** Next + XML scheduler in one process group (`scripts/start-web-and-xml-scheduler.mjs`) |
-| `npm run worker` | BullMQ + Redis only — **queued** channel-feed generation, **not** the XML URL schedule |
+| `npm run worker` | BullMQ + Redis — **queued** channel-feed generation and post–XML-sync regeneration when `REDIS_URL` is set; **not** the XML URL schedule |
 
 **Auth URLs:** `getPublicOriginFromRequest` (`src/lib/publicOrigin.ts`) builds redirect origins from forwarded `Host` / `X-Forwarded-*`, then `APP_URL` / `NEXTAUTH_URL`. **Sign out** uses NextAuth `signOut` with `window.location.origin` for `callbackUrl`. On Railway, set **`NEXTAUTH_URL`** and **`APP_URL`** to your real **`https://…`** URL (never `localhost` there).
 
@@ -200,6 +226,7 @@ src/
 
   lib/
     publicOrigin.ts           public URL for redirects behind proxies (local + Railway)
+    xmlSyncConfig.ts          XML_FETCH_TIMEOUT_MS / XML_SYNC_TRANSACTION_TIMEOUT_MS
     xmlSyncScheduler.ts       minute poll → `syncDueStoresFromXmlUrl`
     auth.ts                   NextAuth credentials + JWT/session typing
     db.ts                     Prisma client singleton
@@ -248,9 +275,10 @@ To resume quickly in a future chat/session:
    - `npx prisma db push`
    - `npm run dev`
    - In a **second** terminal: `npm run xml-sync-scheduler` (store XML **schedule**; optional)
-   - `npm run worker` only if you use Redis for **queued** channel-feed generation
+   - `npm run worker` if you use Redis (**queued** channel-feed generation and post–XML-sync updates)
+   - For large XML URL feeds: set `XML_FETCH_TIMEOUT_MS` / `XML_SYNC_TRANSACTION_TIMEOUT_MS` in `.env` (see [Large or slow XML URL feeds](#large-or-slow-xml-url-feeds))
 4. Validate critical flows:
-   - Store XML URL sync schedule + manual sync
+   - Store XML URL sync schedule + manual sync (including large feeds if applicable)
    - Channel feed mapping + value edits + rules
    - Public XML URL output
    - Product details popup
@@ -272,3 +300,5 @@ Every query is scoped through `requireTenant()` (extracts `organizationId` from 
 | `APP_URL` | Same intent as `NEXTAUTH_URL` (exports, redirects). Keep in sync with the URL users open in the browser. |
 | `NODE_ENV` | `development` / `production` |
 | `PORT` | Provided by Railway; respected by `npm run start` |
+| `XML_FETCH_TIMEOUT_MS` | Optional. Max ms to download a store XML URL (default `180000` = 3 min). Raise for large/slow feeds. |
+| `XML_SYNC_TRANSACTION_TIMEOUT_MS` | Optional. Prisma transaction budget for XML product import (default `300000` = 5 min). Raise for very large catalogs. |
