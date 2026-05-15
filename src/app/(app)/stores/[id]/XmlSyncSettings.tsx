@@ -56,7 +56,11 @@ export function XmlSyncSettings(props: Props) {
       if (!res.ok) throw new Error(data.error ?? "Sync failed");
       setXmlLastSyncAt(new Date().toISOString());
       setXmlLastSyncError(null);
-      setMessage("XML sync completed.");
+      setMessage(
+        data.channelFeedsQueued
+          ? "XML products imported. Channel feed scores are updating in the background (requires the worker)."
+          : "XML sync completed."
+      );
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Sync failed";
       setXmlLastSyncError(msg);

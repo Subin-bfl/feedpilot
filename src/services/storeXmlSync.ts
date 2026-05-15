@@ -1,4 +1,7 @@
 import { prisma } from "@/lib/db";
+import { enqueueGenerate } from "@/lib/queue";
+import { isRedisAvailable } from "@/lib/redis";
+import { xmlFetchTimeoutMs, xmlSyncTransactionTimeoutMs } from "@/lib/xmlSyncConfig";
 import { extractProductFields, parseXML } from "@/services/feedParser";
 import type { SyncFrequency } from "@prisma/client";
 import { runChannelFeedGeneration } from "@/services/channelFeedRun";
@@ -17,8 +20,9 @@ function isSyncDue(opts: { frequency: SyncFrequency; lastSyncAt: Date | null; no
 }
 
 async function fetchXml(xmlFeedUrl: string): Promise<string> {
+  const timeoutMs = xmlFetchTimeoutMs();
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 30_000);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(xmlFeedUrl, {
       method: "GET",
@@ -28,12 +32,22 @@ async function fetchXml(xmlFeedUrl: string): Promise<string> {
     });
     if (!res.ok) throw new Error(`XML fetch failed (${res.status})`);
     return await res.text();
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      const seconds = Math.round(timeoutMs / 1000);
+      throw new Error(
+        `Downloading XML feed timed out after ${seconds}s. For large feeds, set XML_FETCH_TIMEOUT_MS in .env (e.g. 300000 for 5 minutes).`
+      );
+    }
+    throw error;
   } finally {
     clearTimeout(timeout);
   }
 }
 
-export async function syncStoreFromXmlUrl(storeId: string) {
+export type XmlSyncResult = { channelFeedsQueued: boolean };
+
+export async function syncStoreFromXmlUrl(storeId: string): Promise<XmlSyncResult> {
   const store = await prisma.store.findUnique({
     where: { id: storeId },
     select: {
@@ -57,6 +71,7 @@ export async function syncStoreFromXmlUrl(storeId: string) {
     select: { id: true },
   });
 
+  const txTimeout = xmlSyncTransactionTimeoutMs();
   await prisma.$transaction(async (tx) => {
     const previousAutoFeeds = await tx.sourceFeed.findMany({
       where: {
@@ -123,11 +138,22 @@ export async function syncStoreFromXmlUrl(storeId: string) {
       where: { storeId: store.id },
       data: { sourceFeedId: sourceFeed.id },
     });
+  }, {
+    maxWait: Math.min(txTimeout, 60_000),
+    timeout: txTimeout,
   });
+
+  if (isRedisAvailable()) {
+    for (const cf of channelFeedIds) {
+      await enqueueGenerate(cf.id);
+    }
+    return { channelFeedsQueued: true };
+  }
 
   for (const cf of channelFeedIds) {
     await runChannelFeedGeneration(cf.id);
   }
+  return { channelFeedsQueued: false };
 }
 
 export async function syncDueStoresFromXmlUrl() {
